@@ -10,6 +10,8 @@ package org.tinyradius.test;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import org.tinyradius.packet.AccessRequest;
+import org.tinyradius.packet.AccountingRequest;
+import org.tinyradius.packet.CoaRequest;
 import org.tinyradius.packet.RadiusPacket;
 import org.tinyradius.util.RadiusException;
 import org.tinyradius.util.RadiusServer;
@@ -29,7 +31,7 @@ public class TestServer {
 			// Authorize localhost/testing123
 			public String getSharedSecret(InetSocketAddress client) {
 				if (client.getAddress().getHostAddress().equals("127.0.0.1")) {
-					return "testing123";
+					return "47oeW^cC";
 				}
 				return null;
 			}
@@ -57,13 +59,51 @@ public class TestServer {
 				}
 				return packet;
 			}
-		};
+
+			public RadiusPacket accountingRequestReceived(AccountingRequest accountingRequest, InetSocketAddress client) throws RadiusException {
+				System.out.println("Received Accounting-Request:\n" + accountingRequest);
+				RadiusPacket packet = super.accountingRequestReceived(accountingRequest, client);
+				if (packet == null) {
+					System.out.println("Ignore packet.");
+				}
+				else if (packet.getPacketType() == RadiusPacket.ACCOUNTING_RESPONSE) {
+					packet.addAttribute("Reply-Message", "Welcome " + accountingRequest.getUserName() + "!");
+				}
+				else {
+					System.out.println("Answer:\n" + packet);
+				}
+				return packet;
+			}
+
+			public RadiusPacket coaRequestReceived(CoaRequest coaRequest, InetSocketAddress client) throws RadiusException {
+				System.out.println("Received Accounting-Request:\n" + coaRequest);
+				RadiusPacket packet = super.coaRequestReceived(coaRequest, client);
+				if (packet == null) {
+					System.out.println("Ignore packet.");
+				}
+				else if (packet.getPacketType() == RadiusPacket.COA_ACK) {
+					packet.addAttribute("Reply-Message", "Welcome " + coaRequest.getUserName() + "!");
+				}else if (packet.getPacketType() == RadiusPacket.COA_NAK) {
+					packet.addAttribute("Error-Cause","Unsupported-Service");
+					packet.addAttribute("Reply-Message", "No valid session");
+				}
+				else {
+					System.out.println("Answer:\n" + packet);
+				}
+				return packet;
+			}
+
+
+
+			};
 		if (args.length >= 1)
 			server.setAuthPort(Integer.parseInt(args[0]));
 		if (args.length >= 2)
 			server.setAcctPort(Integer.parseInt(args[1]));
+		if (args.length >= 3)
+			server.setCoaPort(Integer.parseInt(args[2]));
 
-		server.start(true, true);
+		server.start(true, true,true);
 
 		System.out.println("Server started.");
 

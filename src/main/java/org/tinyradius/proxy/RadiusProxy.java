@@ -36,8 +36,8 @@ public abstract class RadiusProxy extends RadiusServer {
 	/**
 	 * Starts the Radius proxy. Listens on the proxy port.
 	 */
-	public void start(boolean listenAuth, boolean listenAcct, boolean listenProxy) {
-		super.start(listenAuth, listenAcct);
+	public void start(boolean listenAuth, boolean listenAcct,boolean listenCoa, boolean listenProxy) {
+		super.start(listenAuth, listenAcct,listenCoa);
 		if (listenProxy) {
 			new Thread() {
 				public void run() {
@@ -202,8 +202,10 @@ public abstract class RadiusProxy extends RadiusServer {
 		DatagramSocket socket;
 		if (proxyConnection.getPort() == getAuthPort())
 			socket = getAuthSocket();
-		else
+		else if(proxyConnection.getPort() == getAcctPort())
 			socket = getAcctSocket();
+		else
+			socket = getCoaSocket();
 		socket.send(datagram);
 	}
 
@@ -214,7 +216,7 @@ public abstract class RadiusProxy extends RadiusServer {
 	 * 
 	 * @param packet
 	 *            the packet to proxy
-	 * @param proxyCon
+	 * @param proxyConnection
 	 *            the RadiusProxyConnection for this packet
 	 * @throws IOException
 	 */

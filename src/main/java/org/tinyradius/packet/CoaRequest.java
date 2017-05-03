@@ -1,7 +1,11 @@
 package org.tinyradius.packet;
 
 import java.security.MessageDigest;
+import java.util.List;
 
+import org.tinyradius.attribute.RadiusAttribute;
+import org.tinyradius.attribute.StringAttribute;
+import org.tinyradius.util.RadiusException;
 import org.tinyradius.util.RadiusUtil;
 
 /**
@@ -36,5 +40,16 @@ public class CoaRequest extends RadiusPacket {
 		md5.update(RadiusUtil.getUtf8Bytes(sharedSecret));
 		return md5.digest();
 	}
-	
+
+	public String getUserName() throws RadiusException {
+		List attrs = getAttributes(USER_NAME);
+		if (attrs.size() < 1 || attrs.size() > 1)
+			throw new RuntimeException("exactly one User-Name attribute required");
+
+		RadiusAttribute ra = (RadiusAttribute) attrs.get(0);
+		return ((StringAttribute) ra).getAttributeValue();
+	}
+
+	private static final int USER_NAME = 1;
+
 }

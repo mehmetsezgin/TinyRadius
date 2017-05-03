@@ -20,6 +20,9 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.tinyradius.attribute.RadiusAttribute;
 import org.tinyradius.attribute.VendorSpecificAttribute;
 import org.tinyradius.dictionary.AttributeType;
@@ -33,6 +36,9 @@ import org.tinyradius.util.RadiusUtil;
  * for special packet types.
  */
 public class RadiusPacket {
+
+	private static Log logger = LogFactory.getLog(RadiusPacket.class);
+
 
 	/**
 	 * Packet type codes.
@@ -736,6 +742,10 @@ public class RadiusPacket {
 				rp = new AccountingRequest();
 				break;
 
+			case COA_REQUEST:
+				rp = new CoaRequest();
+				break;
+
 			case ACCESS_ACCEPT:
 			case ACCESS_REJECT:
 			case ACCOUNTING_RESPONSE:
@@ -1041,8 +1051,10 @@ public class RadiusPacket {
 			rp.checkRequestAuthenticator(sharedSecret, length, attributeData);
 		}
 		else {
-			// response packet: check authenticator
-			rp.checkResponseAuthenticator(sharedSecret, length, attributeData, request.getAuthenticator());
+			//logger.info("Authenticator enabled " + sharedSecret);
+			//response packet: check authenticator
+
+			//rp.checkResponseAuthenticator(sharedSecret, length, attributeData, request.getAuthenticator());
 		}
 
 		return rp;

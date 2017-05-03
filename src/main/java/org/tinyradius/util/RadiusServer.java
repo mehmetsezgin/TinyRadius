@@ -26,6 +26,7 @@ import org.apache.commons.logging.LogFactory;
 import org.tinyradius.attribute.RadiusAttribute;
 import org.tinyradius.packet.AccessRequest;
 import org.tinyradius.packet.AccountingRequest;
+import org.tinyradius.packet.CoaRequest;
 import org.tinyradius.packet.RadiusPacket;
 
 /**
@@ -123,6 +124,18 @@ public abstract class RadiusServer {
 		return answer;
 	}
 
+	public RadiusPacket coaRequestReceived(CoaRequest coaRequest, InetSocketAddress client) throws RadiusException {
+		RadiusPacket answer;
+		if ((System.currentTimeMillis() % 2) == 0){
+			answer = new RadiusPacket(RadiusPacket.COA_ACK, coaRequest.getPacketIdentifier());
+		}else{
+			answer = new RadiusPacket(RadiusPacket.COA_NAK, coaRequest.getPacketIdentifier());
+		}
+
+		copyProxyState(coaRequest, answer);
+		return answer;
+	}
+
 	/**
 	 * Starts the Radius server.
 	 * 
@@ -131,7 +144,7 @@ public abstract class RadiusServer {
 	 * @param listenAcct
 	 *            open acct port?
 	 */
-	public void start(boolean listenAuth, boolean listenAcct) {
+	public void start(boolean listenAuth, boolean listenAcct, boolean listenCoa) {
 		if (listenAuth) {
 			new Thread() {
 				public void run() {
@@ -163,12 +176,35 @@ public abstract class RadiusServer {
 						logger.info("RadiusAcctListener is being terminated");
 					}
 					catch (Exception e) {
+
 						e.printStackTrace();
 						logger.fatal("acct thread stopped by exception", e);
 					}
 					finally {
 						acctSocket.close();
 						logger.debug("acct socket closed");
+					}
+				}
+			}.start();
+		}
+
+		if (listenCoa) {
+			new Thread() {
+				public void run() {
+					setName("Radius Coa Listener");
+					try {
+						logger.info("starting RadiusCoatListener on port " + getCoaPort());
+						listenCoa();
+						logger.info("RadiusCoaListener is being terminated");
+					}
+					catch (Exception e) {
+
+						e.printStackTrace();
+						logger.fatal("coa thread stopped by exception", e);
+					}
+					finally {
+						coaSocket.close();
+						logger.debug("coa socket closed");
 					}
 				}
 			}.start();
@@ -187,6 +223,8 @@ public abstract class RadiusServer {
 			authSocket.close();
 		if (acctSocket != null)
 			acctSocket.close();
+		if (coaSocket != null)
+			coaSocket.close();
 	}
 
 	/**
@@ -257,6 +295,17 @@ public abstract class RadiusServer {
 	 */
 	public int getAcctPort() {
 		return acctPort;
+	}
+
+	public int getCoaPort() {
+		return coaPort;
+	}
+
+	public void setCoaPort(int coaPort) {
+		if (coaPort < 1 || coaPort > 65535)
+			throw new IllegalArgumentException("bad port number");
+		this.coaPort = coaPort;
+		this.acctSocket = null;
 	}
 
 	/**
@@ -349,6 +398,10 @@ public abstract class RadiusServer {
 		listen(getAcctSocket());
 	}
 
+	protected void listenCoa() throws SocketException {
+		listen(getCoaSocket());
+	}
+
 	/**
 	 * Listens on the passed socket, blocks until stop() is called.
 	 * 
@@ -416,7 +469,7 @@ public abstract class RadiusServer {
 			// check client
 			final InetSocketAddress localAddress = (InetSocketAddress) s.getLocalSocketAddress();
 			final InetSocketAddress remoteAddress = new InetSocketAddress(packetIn.getAddress(), packetIn.getPort());
-			final String secret = getSharedSecret(remoteAddress, makeRadiusPacket(packetIn, "1234567890", RadiusPacket.RESERVED));
+			final String secret = getSharedSecret(remoteAddress, makeRadiusPacket(packetIn, "testing123", RadiusPacket.RESERVED));
 			if (secret == null) {
 				if (logger.isInfoEnabled())
 					logger.info("ignoring packet from unknown client " + remoteAddress + " received on local address " + localAddress);
@@ -486,8 +539,11 @@ public abstract class RadiusServer {
 				else
 					logger.error("unknown Radius packet type: " + request.getPacketType());
 			}
-			else {
-				// ignore packet on unknown port
+			else if (localAddress.getPort() == getCoaPort()){
+				if (request instanceof CoaRequest)
+					response = coaRequestReceived((CoaRequest) request, remoteAddress);
+				else
+					logger.error("unknown Radius packet type: " + request.getPacketType());
 			}
 		}
 		else
@@ -528,6 +584,17 @@ public abstract class RadiusServer {
 			acctSocket.setSoTimeout(getSocketTimeout());
 		}
 		return acctSocket;
+	}
+
+	protected DatagramSocket getCoaSocket() throws SocketException {
+		if (acctSocket == null) {
+			if (getListenAddress() == null)
+				coaSocket = new DatagramSocket(getCoaPort());
+			else
+				coaSocket = new DatagramSocket(getCoaPort(), getListenAddress());
+			coaSocket.setSoTimeout(getSocketTimeout());
+		}
+		return coaSocket;
 	}
 
 	/**
@@ -626,8 +693,10 @@ public abstract class RadiusServer {
 	private InetAddress listenAddress = null;
 	private int authPort = 1812;
 	private int acctPort = 1813;
+	private int coaPort = 3799;
 	private DatagramSocket authSocket = null;
 	private DatagramSocket acctSocket = null;
+	private DatagramSocket coaSocket = null;
 	private int socketTimeout = 3000;
 	private List receivedPackets = new LinkedList();
 	private long duplicateInterval = 30000; // 30 s
